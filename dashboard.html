@@ -260,6 +260,18 @@
   }
   .tester-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
   .tester-sub { font-size: .8rem; color: var(--muted); margin-bottom: 20px; }
+  .tester-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+  .backend-status {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 10px; font-size: .7rem; font-weight: 600;
+    color: var(--muted); background: var(--surface2);
+  }
+  .backend-status .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .backend-status.active { color: var(--safe); background: var(--safe-lt); border-color: #bbf7d0; }
+  .backend-status.active .status-dot { background: var(--safe); }
+  .backend-status.inactive { color: var(--danger); background: var(--danger-lt); border-color: #fecaca; }
+  .backend-status.inactive .status-dot { background: var(--danger); }
 
   .url-input-row { display: flex; gap: 10px; }
   .url-input {
@@ -291,17 +303,20 @@
   .result-box.show { display: flex; }
   .result-box.safe    { background: var(--safe-lt);   border: 1px solid #bbf7d0; }
   .result-box.phishing { background: var(--danger-lt); border: 1px solid #fecaca; }
+  .result-box.error   { background: var(--danger-lt); border: 1px solid #fecaca; }
 
   .result-icon { font-size: 1.6rem; margin-right: 14px; }
   .result-text { flex: 1; }
   .result-verdict { font-size: .95rem; font-weight: 700; }
   .result-verdict.safe    { color: var(--safe); }
   .result-verdict.phishing { color: var(--danger); }
+  .result-verdict.error   { color: var(--danger); }
   .result-verdict.warn     { color: var(--warn); }
   .result-url { font-size: .72rem; font-family: 'JetBrains Mono', monospace; color: var(--muted); margin-top: 2px; word-break: break-all; }
   .result-score { font-size: 1.4rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
   .result-score.safe    { color: var(--safe); }
   .result-score.phishing { color: var(--danger); }
+  .result-score.error   { color: var(--danger); }
   .result-box.warn      { background: var(--warn-lt); border: 1px solid #fed7aa; }
 
   .feature-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
@@ -348,6 +363,7 @@
     .two-col, .three-col { grid-template-columns: 1fr; }
   }
   @media (max-width: 560px) {
+    .tester-head { align-items: flex-start; flex-direction: column; }
     .stats-grid { grid-template-columns: 1fr; }
     header { padding: 0 16px; }
     nav { display: none; }
@@ -385,7 +401,7 @@
       <div class="stat-card blue">
         <div class="stat-label">Model Accuracy</div>
         <div class="stat-value blue" id="acc-counter">0%</div>
-        <div class="stat-sub">on 20,000 test URLs</div>
+        <div class="stat-sub">trained on 500,000+ URLs</div>
         <div class="progress-wrap">
           <div class="progress-track"><div class="progress-fill blue" style="width:90.35%"></div></div>
         </div>
@@ -421,8 +437,14 @@
   <div id="tester">
     <p class="section-title">Live URL Tester</p>
     <div class="tester-wrap">
-      <div class="tester-title">Analyse a URL</div>
-      <div class="tester-sub">Simulates feature extraction and rule-based classification — runs entirely in browser.</div>
+      <div class="tester-head">
+        <div class="tester-title">Analyse a URL</div>
+        <div class="backend-status inactive" id="backendStatus">
+          <span class="status-dot"></span>
+          <span id="backendStatusText">Backend inactive</span>
+        </div>
+      </div>
+      <div class="tester-sub">Uses the live ML backend when available, with browser heuristics as fallback.</div>
       <div class="url-input-row">
         <input class="url-input" id="urlInput" type="text" placeholder="https://paypal-secure-login.suspicious-domain.com/verify"/>
         <button class="btn btn-primary" onclick="analyseURL()">Analyse</button>
@@ -602,6 +624,8 @@ function animateCounter(id, target, duration, prefix='', suffix='', decimals=0) 
 }
 
 window.addEventListener('load', () => {
+  checkBackendStatus();
+  setInterval(checkBackendStatus, 10000);
   setTimeout(() => {
     animateCounter('acc-counter', 90.35, 1400, '', '%', 2);
     animateCounter('tp-counter',  13401, 1600);
@@ -611,75 +635,122 @@ window.addEventListener('load', () => {
 });
 
 // ── Feature importance data ────────────────────────────
-const features = [
-  { name: 'url_length',         imp: 0.142 },
-  { name: 'entropy',            imp: 0.128 },
-  { name: 'special_char_count', imp: 0.115 },
-  { name: 'path_length',        imp: 0.098 },
-  { name: 'digit_ratio',        imp: 0.087 },
-  { name: 'letter_ratio',       imp: 0.079 },
-  { name: 'dot_count',          imp: 0.068 },
-  { name: 'domain_length',      imp: 0.062 },
-  { name: 'slash_count',        imp: 0.054 },
-  { name: 'digit_count',        imp: 0.047 },
-  { name: 'hyphen_count',       imp: 0.041 },
-  { name: 'subdomain_count',    imp: 0.035 },
-  { name: 'has_phishing_words', imp: 0.028 },
-  { name: 'url_depth',          imp: 0.022 },
-  { name: 'tld_in_path',        imp: 0.016 },
-  { name: 'has_https',          imp: 0.012 },
-];
-
-const maxImp = features[0].imp;
-const fl = document.getElementById('featList');
-features.forEach((f, i) => {
-  const pct = ((f.imp / maxImp) * 100).toFixed(0);
-  fl.innerHTML += `
-    <div class="feat-row" style="animation:fadeUp .4s ease ${.05*i}s both">
-      <div class="feat-name" title="${f.name}">${f.name}</div>
-      <div class="feat-bar-wrap">
-        <div class="feat-bar" style="width:${pct}%; animation-delay:${.4 + .04*i}s"></div>
-      </div>
-      <div class="feat-val">${(f.imp*100).toFixed(1)}%</div>
-    </div>`;
-});
+// Initial data is now loaded dynamically from metadata.json
 
 // ── Sample predictions ─────────────────────────────────
-const samples = [
-  { url: 'nobell.it/70fb52d073109dca5684cce8f313737382/login.SkyPe.com/...', actual: 'phishing', predicted: 'phishing' },
-  { url: 'www.dghjdgf.com/paypal.co.uk/cycgi-bin/webscrcmds=_home...', actual: 'phishing', predicted: 'phishing' },
-  { url: 'serviciosbjs.com/paypal.cgi.bin.get-into.heri.secure.dispatch...', actual: 'phishing', predicted: 'phishing' },
-  { url: 'mail.printakid.com/www.online.americanexpress.com/index.html', actual: 'phishing', predicted: 'safe' },
-  { url: 'smilesvoegol.servebbs.org/voegol.php', actual: 'phishing', predicted: 'phishing' },
-  { url: 'premierpaymentprocessing.com/includes/boleto-2via-07-2012.php', actual: 'phishing', predicted: 'phishing' },
-  { url: 'myjxcollection.com/vt/fjs/jlh321/fbpd.com.do/do/t.popular.php', actual: 'phishing', predicted: 'phishing' },
-  { url: 'super1000.info/docs', actual: 'phishing', predicted: 'safe' },
-  { url: 'google.com', actual: 'safe', predicted: 'safe' },
-  { url: 'github.com/hardik0670/ThreatLens', actual: 'safe', predicted: 'safe' },
-];
-
-const tbody = document.getElementById('samplesTbody');
-samples.forEach((s, i) => {
-  const correct = s.actual === s.predicted;
-  tbody.innerHTML += `
-    <tr>
-      <td style="color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:.72rem;">${String(i+1).padStart(2,'0')}</td>
-      <td><div class="url-cell" title="${s.url}">${s.url}</div></td>
-      <td><span class="verdict-pill ${s.actual}">${s.actual === 'phishing' ? '⚠ Phishing' : '✓ Safe'}</span></td>
-      <td><span class="verdict-pill ${s.predicted}">${s.predicted === 'phishing' ? '⚠ Phishing' : '✓ Safe'}</span></td>
-      <td><span class="verdict-pill ${correct ? 'correct' : 'wrong'}">${correct ? '✓ Correct' : '✗ Wrong'}</span></td>
-    </tr>`;
-});
+// Initial samples are now loaded dynamically from metadata.json
 
 // ── URL Analyser (browser-side feature rules) ──────────
+const knownBrands = {
+  google: ['google.com'],
+  gmail: ['gmail.com', 'googlemail.com'],
+  apple: ['apple.com'],
+  amazon: ['amazon.com'],
+  microsoft: ['microsoft.com', 'live.com', 'outlook.com'],
+  paypal: ['paypal.com'],
+  ebay: ['ebay.com'],
+  facebook: ['facebook.com', 'fb.com'],
+  instagram: ['instagram.com'],
+  netflix: ['netflix.com'],
+};
+const typoBrands = new Set(['google', 'gmail', 'paypal', 'amazon', 'apple', 'microsoft', 'facebook', 'instagram', 'netflix', 'ebay']);
+const commonMultiPartSuffixes = new Set(['co.uk', 'com.au', 'com.br', 'com.cn', 'com.hk', 'com.mx', 'com.sg', 'co.in', 'co.jp', 'co.nz', 'co.za', 'org.uk', 'net.au']);
+
+function normalizeHostname(hostname) {
+  let host = (hostname || '').toLowerCase().replace(/\.$/, '');
+  if (host.startsWith('www.')) host = host.slice(4);
+  return host;
+}
+
+function getRegistrableDomain(hostname) {
+  const host = normalizeHostname(hostname);
+  const parts = host.split('.').filter(Boolean);
+  if (parts.length <= 2) return host;
+  const suffix = parts.slice(-2).join('.');
+  if (commonMultiPartSuffixes.has(suffix) && parts.length >= 3) return parts.slice(-3).join('.');
+  return parts.slice(-2).join('.');
+}
+
+function editDistance(a, b) {
+  let prevPrev = null;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let value = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+      if (prevPrev && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        value = Math.min(value, prevPrev[j - 2] + 1);
+      }
+      cur.push(value);
+    }
+    prevPrev = prev;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+function detectBrandRiskBrowser(url) {
+  const full = url.startsWith('http') ? url : 'http://' + url;
+  const parsed = new URL(full);
+  const host = normalizeHostname(parsed.hostname);
+  const registered = getRegistrableDomain(host);
+  const label = registered.split('.')[0] || host.split('.')[0] || '';
+  const lowerUrl = url.toLowerCase();
+
+  let officialBrand = null;
+  for (const [brand, domains] of Object.entries(knownBrands)) {
+    if (domains.includes(registered)) officialBrand = brand;
+  }
+
+  for (const [brand, domains] of Object.entries(knownBrands)) {
+    if (brand === officialBrand) continue;
+    const brandMentioned = lowerUrl.includes(brand) || domains.some(domain => lowerUrl.includes(domain));
+    const tokens = [...new Set([...label.split(/[^a-z0-9]+/).filter(Boolean), label])];
+    const typoMatch = tokens.some(token =>
+      token !== brand &&
+      token.length >= Math.max(4, brand.length - 1) &&
+      Math.abs(token.length - brand.length) <= 2 &&
+      editDistance(token, brand) <= 1
+    );
+
+    if (brandMentioned) {
+      return { officialBrand, suspiciousBrand: brand, suspiciousReason: `${brand} mentioned outside official domain` };
+    }
+    if (typoBrands.has(brand) && typoMatch) {
+      return { officialBrand, suspiciousBrand: brand, suspiciousReason: `possible ${brand} lookalike domain` };
+    }
+  }
+
+  return { officialBrand, suspiciousBrand: null, suspiciousReason: null };
+}
+
+function isValidUrlInput(url) {
+  const value = url.trim();
+  if (!value || /\s/.test(value)) return false;
+  try {
+    const parsed = new URL(value.startsWith('http://') || value.startsWith('https://') ? value : 'http://' + value);
+    const host = parsed.hostname.replace(/\.$/, '');
+    if (!host || !host.includes('.')) return false;
+    const labels = host.split('.');
+    const tld = labels[labels.length - 1];
+    return labels.every(Boolean) && /^[a-z]{2,}$/i.test(tld);
+  } catch(e) {
+    return false;
+  }
+}
+
 function extractFeaturesBrowser(url) {
   try {
     const full = url.startsWith('http') ? url : 'http://' + url;
     const parsed = new URL(full);
-    const domain = parsed.hostname;
+    const domain = normalizeHostname(parsed.hostname);
     const path   = parsed.pathname;
+    const brandRisk = detectBrandRiskBrowser(url);
 
-    const phishingWords = /login|secure|verify|update|bank|paypal|account|confirm|signin|ebay/i;
+    const phishingWords = brandRisk.officialBrand
+      ? /login|secure|verify|update|bank|account|confirm|signin|wallet|crypto|free|gift|prize|win|claim|support|help|security|alert/i
+      : /login|secure|verify|update|bank|paypal|gmail|google|account|confirm|signin|ebay|wallet|crypto|free|gift|prize|win|claim|support|help|security|alert/i;
     const hexEnc = /%[0-9a-fA-F]{2}/;
     const ipRe   = /^\d{1,3}(\.\d{1,3}){3}$/;
 
@@ -712,6 +783,8 @@ function extractFeaturesBrowser(url) {
       has_hex_encoding:    hexEnc.test(url) ? 1 : 0,
       digit_ratio:         digitCount / Math.max(url.length, 1),
       letter_ratio:        letterCount / Math.max(url.length, 1),
+      brand_risk:          brandRisk,
+      has_brand_mimicry:   brandRisk.suspiciousBrand ? 1 : 0,
     };
   } catch(e) { return null; }
 }
@@ -725,6 +798,7 @@ function scoreURL(f) {
   if (f.has_ip === 1)             risk += 25;
   if (f.entropy > 4.5)            risk += 18;
   if (f.has_phishing_words === 1) risk += 22;
+  if (f.has_brand_mimicry === 1)  risk += 55;
   if (f.special_char_count > 15)  risk += 12;
   if (f.dot_count > 5)            risk += 10;
   if (f.hyphen_count > 4)         risk += 8;
@@ -736,12 +810,20 @@ function scoreURL(f) {
   if (f.has_port === 1)           risk += 8;
   if (f.digit_ratio > 0.2)        risk += 8;
   risk = Math.min(risk, 100);
+  if (f.has_brand_mimicry === 1) risk = Math.max(risk, 92);
+  if (f.brand_risk && f.brand_risk.officialBrand && f.has_brand_mimicry === 0 && f.has_ip === 0 && f.at_count === 0 && f.tld_in_path === 0) {
+    risk = Math.min(risk, 8);
+  }
   return { score: risk, verdict: risk >= 45 ? 'phishing' : 'safe' };
 }
 
 async function analyseURL() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) return;
+  if (!isValidUrlInput(url)) {
+    displayErrorResult(url, 'Enter a valid URL or domain');
+    return;
+  }
 
   const btn = document.querySelector('.btn-primary');
   const originalText = btn.textContent;
@@ -749,7 +831,7 @@ async function analyseURL() {
   btn.disabled = true;
 
   try {
-    const res = await fetch('http://localhost:5000/predict', {
+    const res = await fetch('/predict', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url })
@@ -757,6 +839,7 @@ async function analyseURL() {
     
     if (!res.ok) throw new Error('API Error');
     const data = await res.json();
+    setBackendStatus(true, data.model_loaded !== false);
     const { verdict, score, flags } = data;
 
     const box      = document.getElementById('resultBox');
@@ -784,6 +867,7 @@ async function analyseURL() {
 
   } catch (e) {
     console.error("Live analysis failed, falling back to heuristics.", e);
+    setBackendStatus(false);
     // Fallback to local (old logic) if backend is down
     const f = extractFeaturesBrowser(url);
     const { score, verdict } = scoreURL(f);
@@ -791,6 +875,47 @@ async function analyseURL() {
   } finally {
     btn.textContent = originalText;
     btn.disabled = false;
+  }
+}
+
+function displayErrorResult(url, message) {
+  const box      = document.getElementById('resultBox');
+  const icon     = document.getElementById('resultIcon');
+  const verd     = document.getElementById('resultVerdict');
+  const urlEl    = document.getElementById('resultURL');
+  const scoreEl  = document.getElementById('resultScore');
+  const chipsEl  = document.getElementById('featureChips');
+
+  box.className = 'result-box show error';
+  icon.textContent = '!';
+  verd.className = 'result-verdict error';
+  verd.textContent = message;
+  urlEl.textContent = url || 'No input';
+  scoreEl.className = 'result-score error';
+  scoreEl.textContent = '';
+  chipsEl.innerHTML = '<span class="chip flag">Use a domain like paypal.com or a full URL like https://paypal.com</span>';
+}
+
+function setBackendStatus(active, modelLoaded = true) {
+  const status = document.getElementById('backendStatus');
+  const text = document.getElementById('backendStatusText');
+  if (!status || !text) return;
+
+  status.classList.toggle('active', active && modelLoaded);
+  status.classList.toggle('inactive', !active || !modelLoaded);
+  text.textContent = active && modelLoaded
+    ? 'Backend active'
+    : (active ? 'Backend active, model missing' : 'Backend inactive');
+}
+
+async function checkBackendStatus() {
+  try {
+    const res = await fetch('/health', { cache: 'no-store' });
+    if (!res.ok) throw new Error('Health check failed');
+    const data = await res.json();
+    setBackendStatus(data.app === 'PhishGuard API' && data.status === 'active', data.model_loaded);
+  } catch (e) {
+    setBackendStatus(false);
   }
 }
 
@@ -815,8 +940,12 @@ function displayLocalResult(url, score, verdict, f) {
     if (f.has_https === 0)          flags.push('no HTTPS');
     if (f.has_ip === 1)             flags.push('IP address');
     if (f.has_phishing_words === 1) flags.push('phishing keywords');
+    if (f.has_brand_mimicry === 1)  flags.push(f.brand_risk.suspiciousReason);
   }
   chipsEl.innerHTML = flags.map(t => `<span class="chip flag">⚑ ${t}</span>`).join('');
+  if (verdict === 'safe' && flags.length === 0) {
+    chipsEl.innerHTML = '<span class="chip ok">No threats detected</span>';
+  }
 }
 
 function clearResult() {
@@ -845,7 +974,7 @@ window.addEventListener('scroll', () => {
 // ── Dynamic Metadata Loader ─────────────────────────────
 async function loadMetadata() {
   try {
-    const res = await fetch('http://localhost:5000/results/metadata.json');
+    const res = await fetch('/results/metadata.json');
     const data = await res.json();
     console.log("[*] Real-time metadata loaded.");
     // Update Overview Stats

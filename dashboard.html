@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PhishGuard — Phishing Detection Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #f5f4f0;
+    --surface:   #ffffff;
+    --surface2:  #faf9f6;
+    --border:    #e8e5de;
+    --text:      #1a1916;
+    --muted:     #8a8578;
+    --accent:    #2563eb;
+    --accent-lt: #eff4ff;
+    --safe:      #16a34a;
+    --safe-lt:   #f0fdf4;
+    --danger:    #dc2626;
+    --danger-lt: #fef2f2;
+    --warn:      #d97706;
+    --warn-lt:   #fffbeb;
+    --radius:    14px;
+    --shadow:    0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,.08);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── Topbar ── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(245,244,240,.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 60px;
+    animation: slideDown .5s ease;
+  }
+  @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; letter-spacing: -.3px; }
+  .logo-icon {
+    width: 30px; height: 30px; background: var(--accent);
+    border-radius: 8px; display: grid; place-items: center;
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(37,99,235,.3); } 50% { box-shadow: 0 0 0 6px rgba(37,99,235,0); } }
+
+  .logo-icon svg { width: 16px; height: 16px; fill: white; }
+  .badge { font-size: .68rem; font-weight: 500; color: var(--muted); background: var(--border); padding: 2px 8px; border-radius: 20px; }
+
+  nav { display: flex; gap: 4px; }
+  nav a {
+    font-size: .82rem; font-weight: 500; color: var(--muted);
+    text-decoration: none; padding: 6px 12px; border-radius: 8px;
+    transition: all .2s;
+  }
+  nav a:hover, nav a.active { color: var(--text); background: var(--surface); }
+
+  /* ── Layout ── */
+  main { max-width: 1180px; margin: 0 auto; padding: 36px 24px 64px; }
+
+  /* ── Section titles ── */
+  .section-title {
+    font-size: .7rem; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* ── Hero stat cards ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+    animation: fadeUp .5s ease both;
+  }
+  .stat-card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .stat-card.blue::before  { background: var(--accent); }
+  .stat-card.green::before { background: var(--safe); }
+  .stat-card.red::before   { background: var(--danger); }
+  .stat-card.amber::before { background: var(--warn); }
+
+  .stat-label { font-size: .75rem; font-weight: 500; color: var(--muted); margin-bottom: 8px; }
+  .stat-value { font-size: 2rem; font-weight: 700; letter-spacing: -1px; line-height: 1; }
+  .stat-value.blue  { color: var(--accent); }
+  .stat-value.green { color: var(--safe); }
+  .stat-value.red   { color: var(--danger); }
+  .stat-value.amber { color: var(--warn); }
+  .stat-sub { font-size: .73rem; color: var(--muted); margin-top: 6px; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .stat-card:nth-child(1) { animation-delay: .05s; }
+  .stat-card:nth-child(2) { animation-delay: .1s; }
+  .stat-card:nth-child(3) { animation-delay: .15s; }
+  .stat-card:nth-child(4) { animation-delay: .2s; }
+
+  /* ── Progress bar ── */
+  .progress-wrap { margin-top: 12px; }
+  .progress-track {
+    height: 4px; background: var(--border); border-radius: 99px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 99px;
+    animation: grow 1.2s ease both;
+    animation-delay: .4s;
+  }
+  @keyframes grow { from { width: 0 !important; } }
+  .progress-fill.blue  { background: var(--accent); }
+  .progress-fill.green { background: var(--safe); }
+  .progress-fill.red   { background: var(--danger); }
+
+  /* ── Two column grid ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    animation: fadeUp .5s ease both;
+  }
+  .card-title { font-size: .85rem; font-weight: 600; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+  .card-title .dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ── Confusion matrix visual ── */
+  .cm-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; margin-top: 8px;
+  }
+  .cm-cell {
+    border-radius: 10px; padding: 20px 16px;
+    text-align: center;
+    transition: transform .2s;
+  }
+  .cm-cell:hover { transform: scale(1.02); }
+  .cm-cell .cm-count { font-size: 1.6rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+  .cm-cell .cm-label { font-size: .7rem; color: var(--muted); margin-top: 4px; font-weight: 500; }
+  .cm-cell.tp { background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .cm-cell.tp .cm-count { color: var(--safe); }
+  .cm-cell.fp { background: #fef2f2; border: 1px solid #fecaca; }
+  .cm-cell.fp .cm-count { color: var(--danger); }
+  .cm-cell.fn { background: #fff7ed; border: 1px solid #fed7aa; }
+  .cm-cell.fn .cm-count { color: var(--warn); }
+  .cm-cell.tn { background: #eff6ff; border: 1px solid #bfdbfe; }
+  .cm-cell.tn .cm-count { color: var(--accent); }
+
+  .cm-axis {
+    display: flex; gap: 10px; margin-top: 10px;
+  }
+  .cm-axis-label {
+    flex: 1; text-align: center; font-size: .68rem;
+    font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .cm-row-labels {
+    display: flex; flex-direction: column;
+    justify-content: space-around; margin-right: 6px;
+  }
+  .cm-row-label {
+    font-size: .68rem; font-weight: 600;
+    text-transform: uppercase; color: var(--muted);
+    letter-spacing: .06em; writing-mode: horizontal-tb;
+  }
+
+  /* ── Feature importance bars ── */
+  .feat-list { display: flex; flex-direction: column; gap: 10px; }
+  .feat-row { display: flex; align-items: center; gap: 10px; }
+  .feat-name {
+    font-size: .72rem; font-family: 'JetBrains Mono', monospace;
+    color: var(--text); width: 160px; flex-shrink: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .feat-bar-wrap { flex: 1; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .feat-bar {
+    height: 100%; border-radius: 99px; background: var(--accent);
+    animation: grow 1s ease both;
+  }
+  .feat-val {
+    font-size: .7rem; font-family: 'JetBrains Mono', monospace;
+    color: var(--muted); width: 38px; text-align: right;
+  }
+
+  /* ── Dataset distribution ── */
+  .dist-bar {
+    display: flex; height: 28px; border-radius: 8px; overflow: hidden;
+    margin: 12px 0 8px;
+  }
+  .dist-seg { display: flex; align-items: center; justify-content: center;
+    font-size: .72rem; font-weight: 600; color: white;
+    transition: flex .8s ease;
+  }
+  .dist-seg.bad  { background: #dc2626; }
+  .dist-seg.good { background: #16a34a; }
+
+  .dist-legend { display: flex; gap: 16px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: .75rem; color: var(--muted); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── Metrics table ── */
+  .metrics-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  .metrics-table th {
+    text-align: left; font-size: .68rem; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); padding: 0 12px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .metrics-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .metrics-table tr:last-child td { border-bottom: none; }
+  .metrics-table tr:hover td { background: var(--surface2); }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: .7rem; font-weight: 600; font-family: 'JetBrains Mono', monospace;
+  }
+  .pill.high  { background: var(--safe-lt);   color: var(--safe); }
+  .pill.med   { background: var(--warn-lt);   color: var(--warn); }
+  .pill.low   { background: var(--danger-lt); color: var(--danger); }
+
+  /* ── URL tester ── */
+  .tester-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+    animation: fadeUp .5s ease .25s both;
+  }
+  .tester-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+  .tester-sub { font-size: .8rem; color: var(--muted); margin-bottom: 20px; }
+
+  .url-input-row { display: flex; gap: 10px; }
+  .url-input {
+    flex: 1; font-family: 'JetBrains Mono', monospace; font-size: .82rem;
+    padding: 11px 16px; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--bg); color: var(--text);
+    outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  .url-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+  .url-input::placeholder { color: var(--muted); }
+
+  .btn {
+    padding: 11px 22px; border-radius: 10px; border: none;
+    font-family: 'Sora', sans-serif; font-size: .82rem; font-weight: 600;
+    cursor: pointer; transition: all .2s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,.3); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-ghost { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--border); color: var(--text); }
+
+  .result-box {
+    margin-top: 18px; padding: 16px 20px;
+    border-radius: 10px; display: none;
+    animation: fadeUp .3s ease;
+    align-items: center; justify-content: space-between; flex-wrap: gap;
+  }
+  .result-box.show { display: flex; }
+  .result-box.safe    { background: var(--safe-lt);   border: 1px solid #bbf7d0; }
+  .result-box.phishing { background: var(--danger-lt); border: 1px solid #fecaca; }
+
+  .result-icon { font-size: 1.6rem; margin-right: 14px; }
+  .result-text { flex: 1; }
+  .result-verdict { font-size: .95rem; font-weight: 700; }
+  .result-verdict.safe    { color: var(--safe); }
+  .result-verdict.phishing { color: var(--danger); }
+  .result-verdict.warn     { color: var(--warn); }
+  .result-url { font-size: .72rem; font-family: 'JetBrains Mono', monospace; color: var(--muted); margin-top: 2px; word-break: break-all; }
+  .result-score { font-size: 1.4rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+  .result-score.safe    { color: var(--safe); }
+  .result-score.phishing { color: var(--danger); }
+  .result-box.warn      { background: var(--warn-lt); border: 1px solid #fed7aa; }
+
+  .feature-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .chip {
+    font-size: .68rem; font-family: 'JetBrains Mono', monospace;
+    padding: 3px 10px; border-radius: 20px; font-weight: 500;
+  }
+  .chip.flag { background: var(--danger-lt); color: var(--danger); }
+  .chip.ok   { background: var(--safe-lt);   color: var(--safe); }
+
+  /* ── Samples table ── */
+  .samples-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+  .samples-table th {
+    text-align: left; font-size: .68rem; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); padding: 0 14px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .samples-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .samples-table tr:last-child td { border-bottom: none; }
+  .samples-table tr:hover td { background: var(--surface2); }
+  .url-cell {
+    font-family: 'JetBrains Mono', monospace; font-size: .7rem;
+    max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .verdict-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: .7rem; font-weight: 600;
+  }
+  .verdict-pill.safe    { background: var(--safe-lt);   color: var(--safe); }
+  .verdict-pill.phishing { background: var(--danger-lt); color: var(--danger); }
+  .verdict-pill.correct  { background: #f0fdf4; color: var(--safe); }
+  .verdict-pill.wrong    { background: #fef2f2; color: var(--danger); }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center; padding: 32px; font-size: .75rem; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .two-col, .three-col { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .stats-grid { grid-template-columns: 1fr; }
+    header { padding: 0 16px; }
+    nav { display: none; }
+  }
+
+  /* ── Animated counter ── */
+  .count-up { display: inline-block; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L4 5v6c0 5.5 3.4 10.7 8 12 4.6-1.3 8-6.5 8-12V5l-8-3z"/></svg>
+    </div>
+    PhishGuard
+    <span class="badge">v1.1 · XGBoost</span>
+  </div>
+  <nav>
+    <a href="#overview" class="active">Overview</a>
+    <a href="#analysis">Analysis</a>
+    <a href="#tester">URL Tester</a>
+    <a href="#samples">Samples</a>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ── Overview ── -->
+  <div id="overview" style="margin-bottom:28px; animation: fadeUp .4s ease;">
+    <p class="section-title">Model Overview</p>
+    <div class="stats-grid">
+      <div class="stat-card blue">
+        <div class="stat-label">Model Accuracy</div>
+        <div class="stat-value blue" id="acc-counter">0%</div>
+        <div class="stat-sub">on 20,000 test URLs</div>
+        <div class="progress-wrap">
+          <div class="progress-track"><div class="progress-fill blue" style="width:90.35%"></div></div>
+        </div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">URLs Correctly Safe</div>
+        <div class="stat-value green" id="tp-counter">0</div>
+        <div class="stat-sub">True Negatives (Safe → Safe)</div>
+        <div class="progress-wrap">
+          <div class="progress-track"><div class="progress-fill green" style="width:93.6%"></div></div>
+        </div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Phishing Caught</div>
+        <div class="stat-value green" id="tn-counter">0</div>
+        <div class="stat-sub">True Positives (Phishing → Phishing)</div>
+        <div class="progress-wrap">
+          <div class="progress-track"><div class="progress-fill green" style="width:81.2%"></div></div>
+        </div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-label">Total Misclassified</div>
+        <div class="stat-value red" id="err-counter">0</div>
+        <div class="stat-sub">FP + FN errors</div>
+        <div class="progress-wrap">
+          <div class="progress-track"><div class="progress-fill red" style="width:9.65%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── URL Tester ── -->
+  <div id="tester">
+    <p class="section-title">Live URL Tester</p>
+    <div class="tester-wrap">
+      <div class="tester-title">Analyse a URL</div>
+      <div class="tester-sub">Simulates feature extraction and rule-based classification — runs entirely in browser.</div>
+      <div class="url-input-row">
+        <input class="url-input" id="urlInput" type="text" placeholder="https://paypal-secure-login.suspicious-domain.com/verify"/>
+        <button class="btn btn-primary" onclick="analyseURL()">Analyse</button>
+        <button class="btn btn-ghost" onclick="clearResult()">Clear</button>
+      </div>
+      <div class="result-box" id="resultBox">
+        <span class="result-icon" id="resultIcon"></span>
+        <div class="result-text">
+          <div class="result-verdict" id="resultVerdict"></div>
+          <div class="result-url" id="resultURL"></div>
+          <div class="feature-chips" id="featureChips"></div>
+        </div>
+        <div class="result-score" id="resultScore"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Analysis ── -->
+  <div id="analysis">
+    <p class="section-title">Model Analysis</p>
+    <div class="two-col">
+
+      <!-- Confusion Matrix -->
+      <div class="card" style="animation-delay:.1s">
+        <div class="card-title">
+          <div class="dot" style="background:var(--accent)"></div>
+          Confusion Matrix
+        </div>
+        <div style="display:flex; gap:8px;">
+          <div class="cm-row-labels">
+            <div class="cm-row-label" style="color:var(--danger)">Phishing</div>
+            <div class="cm-row-label" style="color:var(--safe)">Safe</div>
+          </div>
+          <div style="flex:1">
+            <div class="cm-grid">
+              <div class="cm-cell fn">
+                <div class="cm-count">1,068</div>
+                <div class="cm-label">False Negative<br>Phishing missed</div>
+              </div>
+              <div class="cm-cell tp">
+                <div class="cm-count">4,606</div>
+                <div class="cm-label">True Positive<br>Phishing caught ✓</div>
+              </div>
+              <div class="cm-cell tn">
+                <div class="cm-count">13,401</div>
+                <div class="cm-label">True Negative<br>Safe correct ✓</div>
+              </div>
+              <div class="cm-cell fp">
+                <div class="cm-count">924</div>
+                <div class="cm-label">False Positive<br>Safe flagged wrong</div>
+              </div>
+            </div>
+            <div class="cm-axis">
+              <div class="cm-axis-label" style="color:var(--safe)">Predicted Safe</div>
+              <div class="cm-axis-label" style="color:var(--danger)">Predicted Phishing</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px; font-size:.73rem; color:var(--muted); line-height:1.7;">
+          Rows = Actual label &nbsp;·&nbsp; Columns = Predicted label
+        </div>
+      </div>
+
+      <!-- Class metrics -->
+      <div class="card" style="animation-delay:.15s">
+        <div class="card-title">
+          <div class="dot" style="background:var(--safe)"></div>
+          Per-Class Metrics
+        </div>
+        <table class="metrics-table">
+          <thead>
+            <tr>
+              <th>Class</th>
+              <th>Precision</th>
+              <th>Recall</th>
+              <th>F1 Score</th>
+              <th>Support</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="verdict-pill safe">Safe</span></td>
+              <td><span class="pill high">92.6%</span></td>
+              <td><span class="pill high">93.6%</span></td>
+              <td><span class="pill high">93.1%</span></td>
+              <td style="font-family:'JetBrains Mono',monospace; font-size:.75rem;">14,325</td>
+            </tr>
+            <tr>
+              <td><span class="verdict-pill phishing">Phishing</span></td>
+              <td><span class="pill high">83.3%</span></td>
+              <td><span class="pill med">81.2%</span></td>
+              <td><span class="pill high">82.2%</span></td>
+              <td style="font-family:'JetBrains Mono',monospace; font-size:.75rem;">5,674</td>
+            </tr>
+            <tr>
+              <td><strong>Weighted Avg</strong></td>
+              <td><span class="pill high">89.9%</span></td>
+              <td><span class="pill high">90.4%</span></td>
+              <td><span class="pill high">90.1%</span></td>
+              <td style="font-family:'JetBrains Mono',monospace; font-size:.75rem;">19,999</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:18px;">
+          <div class="card-title" style="margin-bottom:12px;">
+            <div class="dot" style="background:var(--warn)"></div>
+            Dataset Distribution (100k sample)
+          </div>
+          <div class="dist-bar">
+            <div class="dist-seg bad"  style="flex:73.6">73.6%</div>
+            <div class="dist-seg good" style="flex:26.4">26.4%</div>
+          </div>
+          <div class="dist-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div>Phishing — 73,569</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div>Safe — 26,431</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature importance -->
+    <div class="card" style="animation-delay:.2s; margin-bottom:24px;">
+      <div class="card-title">
+        <div class="dot" style="background:var(--accent)"></div>
+        Feature Importance (Top 16 of 24)
+        <span style="font-size:.7rem; color:var(--muted); font-weight:400; margin-left:4px;">— estimated from model structure</span>
+      </div>
+      <div class="feat-list" id="featList"></div>
+    </div>
+  </div>
+
+  <!-- ── Sample Predictions ── -->
+  <div id="samples">
+    <p class="section-title">Sample Predictions</p>
+    <div class="card" style="animation-delay:.25s;">
+      <div class="card-title">
+        <div class="dot" style="background:var(--safe)"></div>
+        10 Test-Set Predictions
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="samples-table" id="samplesTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>URL</th>
+              <th>Actual</th>
+              <th>Predicted</th>
+              <th>Match</th>
+            </tr>
+          </thead>
+          <tbody id="samplesTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  PhishGuard · Phishing Detection System &nbsp;·&nbsp; XGBoost · 28 Features · 550k URLs &nbsp;·&nbsp; UPES Dehradun
+</footer>
+
+<script>
+// ── Animated counters ──────────────────────────────────
+function animateCounter(id, target, duration, prefix='', suffix='', decimals=0) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = performance.now();
+  const update = (now) => {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const val = target * ease;
+    el.textContent = prefix + (decimals ? val.toFixed(decimals) : Math.round(val).toLocaleString()) + suffix;
+    if (t < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    animateCounter('acc-counter', 90.35, 1400, '', '%', 2);
+    animateCounter('tp-counter',  13401, 1600);
+    animateCounter('tn-counter',  4606,  1600);
+    animateCounter('err-counter', 1992,  1600);
+  }, 300);
+});
+
+// ── Feature importance data ────────────────────────────
+const features = [
+  { name: 'url_length',         imp: 0.142 },
+  { name: 'entropy',            imp: 0.128 },
+  { name: 'special_char_count', imp: 0.115 },
+  { name: 'path_length',        imp: 0.098 },
+  { name: 'digit_ratio',        imp: 0.087 },
+  { name: 'letter_ratio',       imp: 0.079 },
+  { name: 'dot_count',          imp: 0.068 },
+  { name: 'domain_length',      imp: 0.062 },
+  { name: 'slash_count',        imp: 0.054 },
+  { name: 'digit_count',        imp: 0.047 },
+  { name: 'hyphen_count',       imp: 0.041 },
+  { name: 'subdomain_count',    imp: 0.035 },
+  { name: 'has_phishing_words', imp: 0.028 },
+  { name: 'url_depth',          imp: 0.022 },
+  { name: 'tld_in_path',        imp: 0.016 },
+  { name: 'has_https',          imp: 0.012 },
+];
+
+const maxImp = features[0].imp;
+const fl = document.getElementById('featList');
+features.forEach((f, i) => {
+  const pct = ((f.imp / maxImp) * 100).toFixed(0);
+  fl.innerHTML += `
+    <div class="feat-row" style="animation:fadeUp .4s ease ${.05*i}s both">
+      <div class="feat-name" title="${f.name}">${f.name}</div>
+      <div class="feat-bar-wrap">
+        <div class="feat-bar" style="width:${pct}%; animation-delay:${.4 + .04*i}s"></div>
+      </div>
+      <div class="feat-val">${(f.imp*100).toFixed(1)}%</div>
+    </div>`;
+});
+
+// ── Sample predictions ─────────────────────────────────
+const samples = [
+  { url: 'nobell.it/70fb52d073109dca5684cce8f313737382/login.SkyPe.com/...', actual: 'phishing', predicted: 'phishing' },
+  { url: 'www.dghjdgf.com/paypal.co.uk/cycgi-bin/webscrcmds=_home...', actual: 'phishing', predicted: 'phishing' },
+  { url: 'serviciosbjs.com/paypal.cgi.bin.get-into.heri.secure.dispatch...', actual: 'phishing', predicted: 'phishing' },
+  { url: 'mail.printakid.com/www.online.americanexpress.com/index.html', actual: 'phishing', predicted: 'safe' },
+  { url: 'smilesvoegol.servebbs.org/voegol.php', actual: 'phishing', predicted: 'phishing' },
+  { url: 'premierpaymentprocessing.com/includes/boleto-2via-07-2012.php', actual: 'phishing', predicted: 'phishing' },
+  { url: 'myjxcollection.com/vt/fjs/jlh321/fbpd.com.do/do/t.popular.php', actual: 'phishing', predicted: 'phishing' },
+  { url: 'super1000.info/docs', actual: 'phishing', predicted: 'safe' },
+  { url: 'google.com', actual: 'safe', predicted: 'safe' },
+  { url: 'github.com/hardik0670/ThreatLens', actual: 'safe', predicted: 'safe' },
+];
+
+const tbody = document.getElementById('samplesTbody');
+samples.forEach((s, i) => {
+  const correct = s.actual === s.predicted;
+  tbody.innerHTML += `
+    <tr>
+      <td style="color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:.72rem;">${String(i+1).padStart(2,'0')}</td>
+      <td><div class="url-cell" title="${s.url}">${s.url}</div></td>
+      <td><span class="verdict-pill ${s.actual}">${s.actual === 'phishing' ? '⚠ Phishing' : '✓ Safe'}</span></td>
+      <td><span class="verdict-pill ${s.predicted}">${s.predicted === 'phishing' ? '⚠ Phishing' : '✓ Safe'}</span></td>
+      <td><span class="verdict-pill ${correct ? 'correct' : 'wrong'}">${correct ? '✓ Correct' : '✗ Wrong'}</span></td>
+    </tr>`;
+});
+
+// ── URL Analyser (browser-side feature rules) ──────────
+function extractFeaturesBrowser(url) {
+  try {
+    const full = url.startsWith('http') ? url : 'http://' + url;
+    const parsed = new URL(full);
+    const domain = parsed.hostname;
+    const path   = parsed.pathname;
+
+    const phishingWords = /login|secure|verify|update|bank|paypal|account|confirm|signin|ebay/i;
+    const hexEnc = /%[0-9a-fA-F]{2}/;
+    const ipRe   = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+    const digitCount   = (url.match(/\d/g) || []).length;
+    const letterCount  = (url.match(/[a-zA-Z]/g) || []).length;
+    const specialCount = (url.match(/[^a-zA-Z0-9]/g) || []).length;
+
+    // Entropy
+    const freq = {};
+    for (const c of url) freq[c] = (freq[c] || 0) + 1;
+    const entropy = -Object.values(freq).reduce((s, f) => s + (f/url.length)*Math.log2(f/url.length), 0);
+
+    return {
+      url_length:          url.length,
+      has_https:           parsed.protocol === 'https:' ? 1 : 0,
+      has_ip:              ipRe.test(domain) ? 1 : 0,
+      dot_count:           (url.match(/\./g) || []).length,
+      hyphen_count:        (url.match(/-/g) || []).length,
+      at_count:            (url.match(/@/g) || []).length,
+      slash_count:         (url.match(/\//g) || []).length,
+      special_char_count:  specialCount,
+      subdomain_count:     domain.split('.').length - 2,
+      path_length:         path.length,
+      entropy:             entropy,
+      has_phishing_words:  phishingWords.test(url) ? 1 : 0,
+      has_port:            parsed.port ? 1 : 0,
+      domain_length:       domain.length,
+      has_double_slash:    path.includes('//') ? 1 : 0,
+      tld_in_path:         /\.(com|net|org|php|html)/i.test(path) ? 1 : 0,
+      has_hex_encoding:    hexEnc.test(url) ? 1 : 0,
+      digit_ratio:         digitCount / Math.max(url.length, 1),
+      letter_ratio:        letterCount / Math.max(url.length, 1),
+    };
+  } catch(e) { return null; }
+}
+
+function scoreURL(f) {
+  if (!f) return { score: 50, verdict: 'unknown' };
+  let risk = 0;
+  if (f.url_length > 75)          risk += 20;
+  else if (f.url_length > 50)     risk += 10;
+  if (f.has_https === 0)          risk += 25; // Increased from 15 to 25
+  if (f.has_ip === 1)             risk += 25;
+  if (f.entropy > 4.5)            risk += 18;
+  if (f.has_phishing_words === 1) risk += 22;
+  if (f.special_char_count > 15)  risk += 12;
+  if (f.dot_count > 5)            risk += 10;
+  if (f.hyphen_count > 4)         risk += 8;
+  if (f.at_count > 0)             risk += 20;
+  if (f.subdomain_count > 2)      risk += 10;
+  if (f.has_double_slash === 1)   risk += 8;
+  if (f.tld_in_path === 1)        risk += 12;
+  if (f.has_hex_encoding === 1)   risk += 10;
+  if (f.has_port === 1)           risk += 8;
+  if (f.digit_ratio > 0.2)        risk += 8;
+  risk = Math.min(risk, 100);
+  return { score: risk, verdict: risk >= 45 ? 'phishing' : 'safe' };
+}
+
+async function analyseURL() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+
+  const btn = document.querySelector('.btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = 'Analysing...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('http://localhost:5000/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    
+    if (!res.ok) throw new Error('API Error');
+    const data = await res.json();
+    const { verdict, score, flags } = data;
+
+    const box      = document.getElementById('resultBox');
+    const icon     = document.getElementById('resultIcon');
+    const verd     = document.getElementById('resultVerdict');
+    const urlEl    = document.getElementById('resultURL');
+    const scoreEl  = document.getElementById('resultScore');
+    const chipsEl  = document.getElementById('featureChips');
+
+    const isInsecure = flags.some(f => f.includes('HTTP'));
+
+    box.className = `result-box show ${verdict} ${isInsecure && verdict === 'safe' ? 'warn' : ''}`;
+    icon.textContent = verdict === 'phishing' ? '🚨' : (isInsecure ? '⚠️' : '✅');
+    verd.className = `result-verdict ${verdict} ${isInsecure && verdict === 'safe' ? 'warn' : ''}`;
+    verd.textContent = verdict === 'phishing' ? 'Phishing Detected' : (isInsecure ? 'Insecure but Likely Safe' : 'Looks Safe');
+    urlEl.textContent = url.length > 60 ? url.slice(0,60)+'…' : url;
+    scoreEl.className = `result-score ${verdict}`;
+    scoreEl.textContent = score + '%';
+
+    // Chips from API flags
+    chipsEl.innerHTML = flags.map(t => `<span class="chip flag">⚑ ${t}</span>`).join('');
+    if (verdict === 'safe' && flags.length === 0) {
+      chipsEl.innerHTML = '<span class="chip ok">No threats detected ✓</span>';
+    }
+
+  } catch (e) {
+    console.error("Live analysis failed, falling back to heuristics.", e);
+    // Fallback to local (old logic) if backend is down
+    const f = extractFeaturesBrowser(url);
+    const { score, verdict } = scoreURL(f);
+    displayLocalResult(url, score, verdict, f);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+function displayLocalResult(url, score, verdict, f) {
+  const box      = document.getElementById('resultBox');
+  const icon     = document.getElementById('resultIcon');
+  const verd     = document.getElementById('resultVerdict');
+  const urlEl    = document.getElementById('resultURL');
+  const scoreEl  = document.getElementById('resultScore');
+  const chipsEl  = document.getElementById('featureChips');
+
+  box.className = `result-box show ${verdict}`;
+  icon.textContent = verdict === 'phishing' ? '🚨' : '✅';
+  verd.className = `result-verdict ${verdict}`;
+  verd.textContent = (verdict === 'phishing' ? 'Phishing Detected' : 'Looks Safe') + ' (Heuristic)';
+  urlEl.textContent = url.length > 60 ? url.slice(0,60)+'…' : url;
+  scoreEl.className = `result-score ${verdict}`;
+  scoreEl.textContent = score + '%';
+
+  const flags = [];
+  if (f) {
+    if (f.has_https === 0)          flags.push('no HTTPS');
+    if (f.has_ip === 1)             flags.push('IP address');
+    if (f.has_phishing_words === 1) flags.push('phishing keywords');
+  }
+  chipsEl.innerHTML = flags.map(t => `<span class="chip flag">⚑ ${t}</span>`).join('');
+}
+
+function clearResult() {
+  document.getElementById('urlInput').value = '';
+  document.getElementById('resultBox').className = 'result-box';
+}
+
+document.getElementById('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') analyseURL();
+});
+
+// ── Active nav on scroll ───────────────────────────────
+const sections = ['overview','tester','analysis','samples'];
+const navLinks  = document.querySelectorAll('nav a');
+window.addEventListener('scroll', () => {
+  let current = 'overview';
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && window.scrollY >= el.offsetTop - 100) current = id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#'+current);
+  });
+});
+
+// ── Dynamic Metadata Loader ─────────────────────────────
+async function loadMetadata() {
+  try {
+    const res = await fetch('http://localhost:5000/results/metadata.json');
+    const data = await res.json();
+    console.log("[*] Real-time metadata loaded.");
+    // Update Overview Stats
+    animateCounter('acc-counter', data.accuracy, 1400, '', '%', 2);
+    animateCounter('tp-counter',  data.confusion_matrix.tp + data.confusion_matrix.tn, 1600); // Correctly classified
+    animateCounter('tn-counter',  data.confusion_matrix.tp, 1600); // Phishing caught
+    animateCounter('err-counter', data.confusion_matrix.fp + data.confusion_matrix.fn, 1600);
+    
+    // Update progress bars
+    document.querySelector('.stat-card.blue .progress-fill').style.width = data.accuracy + '%';
+    const safeCorrectPct = (data.confusion_matrix.tn / data.metrics.safe.support) * 100;
+    document.querySelector('.stat-card.green:nth-child(2) .progress-fill').style.width = safeCorrectPct + '%';
+    const phishingCaughtPct = (data.confusion_matrix.tp / data.metrics.phishing.support) * 100;
+    document.querySelector('.stat-card.green:nth-child(3) .progress-fill').style.width = phishingCaughtPct + '%';
+    const errorPct = ((data.confusion_matrix.fp + data.confusion_matrix.fn) / data.total_test) * 100;
+    document.querySelector('.stat-card.red .progress-fill').style.width = errorPct + '%';
+
+    // Update Confusion Matrix cells
+    document.querySelector('.cm-cell.fn .cm-count').textContent = data.confusion_matrix.fn.toLocaleString();
+    document.querySelector('.cm-cell.tp .cm-count').textContent = data.confusion_matrix.tp.toLocaleString();
+    document.querySelector('.cm-cell.tn .cm-count').textContent = data.confusion_matrix.tn.toLocaleString();
+    document.querySelector('.cm-cell.fp .cm-count').textContent = data.confusion_matrix.fp.toLocaleString();
+
+    // Update Metrics Table
+    const tbody = document.querySelector('.metrics-table tbody');
+    tbody.innerHTML = `
+      <tr>
+        <td><span class="verdict-pill safe">Safe</span></td>
+        <td><span class="pill ${getPillClass(data.metrics.safe.precision)}">${data.metrics.safe.precision}%</span></td>
+        <td><span class="pill ${getPillClass(data.metrics.safe.recall)}">${data.metrics.safe.recall}%</span></td>
+        <td><span class="pill ${getPillClass(data.metrics.safe.f1)}">${data.metrics.safe.f1}%</span></td>
+        <td style="font-family:'JetBrains Mono',monospace; font-size:.75rem;">${data.metrics.safe.support.toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td><span class="verdict-pill phishing">Phishing</span></td>
+        <td><span class="pill ${getPillClass(data.metrics.phishing.precision)}">${data.metrics.phishing.precision}%</span></td>
+        <td><span class="pill ${getPillClass(data.metrics.phishing.recall)}">${data.metrics.phishing.recall}%</span></td>
+        <td><span class="pill ${getPillClass(data.metrics.phishing.f1)}">${data.metrics.phishing.f1}%</span></td>
+        <td style="font-family:'JetBrains Mono',monospace; font-size:.75rem;">${data.metrics.phishing.support.toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td><strong>Weighted Avg</strong></td>
+        <td><span class="pill ${getPillClass(data.metrics.weighted_avg.precision)}">${data.metrics.weighted_avg.precision}%</span></td>
+        <td><span class="pill ${getPillClass(data.metrics.weighted_avg.recall)}">${data.metrics.weighted_avg.recall}%</span></td>
+        <td><span class="pill ${getPillClass(data.metrics.weighted_avg.f1)}">${data.metrics.weighted_avg.f1}%</span></td>
+        <td style="font-family:'JetBrains Mono',monospace; font-size:.75rem;">${data.total_test.toLocaleString()}</td>
+      </tr>
+    `;
+
+    // Distribution
+    const totalDist = data.distribution.bad + data.distribution.good;
+    const badPct = (data.distribution.bad / totalDist * 100).toFixed(1);
+    const goodPct = (data.distribution.good / totalDist * 100).toFixed(1);
+    document.querySelector('.dist-seg.bad').style.flex = badPct;
+    document.querySelector('.dist-seg.bad').textContent = badPct + '%';
+    document.querySelector('.dist-seg.good').style.flex = goodPct;
+    document.querySelector('.dist-seg.good').textContent = goodPct + '%';
+    document.querySelector('.legend-item:nth-child(1)').innerHTML = `<div class="legend-dot" style="background:#dc2626"></div>Phishing — ${data.distribution.bad.toLocaleString()}`;
+    document.querySelector('.legend-item:nth-child(2)').innerHTML = `<div class="legend-dot" style="background:#16a34a"></div>Safe — ${data.distribution.good.toLocaleString()}`;
+
+    // Feature Importance
+    const fl = document.getElementById('featList');
+    fl.innerHTML = '';
+    const maxImp = data.feature_importance[0].imp;
+    data.feature_importance.forEach((f, i) => {
+      const pct = ((f.imp / maxImp) * 100).toFixed(0);
+      fl.innerHTML += `
+        <div class="feat-row" style="animation:fadeUp .4s ease ${.05*i}s both">
+          <div class="feat-name" title="${f.name}">${f.name}</div>
+          <div class="feat-bar-wrap">
+            <div class="feat-bar" style="width:${pct}%; animation-delay:${.4 + .04*i}s"></div>
+          </div>
+          <div class="feat-val">${(f.imp*100).toFixed(1)}%</div>
+        </div>`;
+    });
+
+    // Sample Predictions
+    const samplesTbody = document.getElementById('samplesTbody');
+    samplesTbody.innerHTML = '';
+    data.samples.forEach((s, i) => {
+      const correct = s.actual === s.predicted;
+      samplesTbody.innerHTML += `
+        <tr>
+          <td style="color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:.72rem;">${String(i+1).padStart(2,'0')}</td>
+          <td><div class="url-cell" title="${s.url}">${s.url}</div></td>
+          <td><span class="verdict-pill ${s.actual}">${s.actual === 'phishing' ? '⚠ Phishing' : '✓ Safe'}</span></td>
+          <td><span class="verdict-pill ${s.predicted}">${s.predicted === 'phishing' ? '⚠ Phishing' : '✓ Safe'}</span></td>
+          <td><span class="verdict-pill ${correct ? 'correct' : 'wrong'}">${correct ? '✓ Correct' : '✗ Wrong'}</span></td>
+        </tr>`;
+    });
+
+  } catch (e) {
+    console.warn("Could not load real-time metadata, using fallback.", e);
+  }
+}
+
+function getPillClass(val) {
+  if (val >= 90) return 'high';
+  if (val >= 75) return 'med';
+  return 'low';
+}
+
+window.addEventListener('DOMContentLoaded', loadMetadata);
+</script>
+</body>
+</html>
